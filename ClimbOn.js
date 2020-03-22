@@ -1,9 +1,11 @@
 //gui
 let instruct, welcome, play, reset;
+let ind = 0;
 let nextlevel, hm, msg;
 let ins = {show:true,fy:-96,ty:-4,cy:-96};//true y, false y, current y
 let gameState = 'start';//start, ingame, nextlevel
 let stateTimer = 0;
+let bellsound;
 //grips and background
 let backimg;
 let c = 0;
@@ -12,12 +14,14 @@ let griploc=[];
 let y = 0;
 //person
 let body=[];
+let canrotatebody = true;
+let tintplr = false;
 let bro=[0,1,2,1,2,3,4,3,4];
 let transform = [];
 let anchor=[];
 let skiprock = false;//making the limb skip the grip so it takes 2 clicks to grab
 //levelvars
-let lvl = 0;
+let lvl = 1;
 function preload() {
   backimg = loadImage('assets/background.png');
   reset = loadImage('assets/reset.png');
@@ -38,43 +42,14 @@ function preload() {
 }
 function setup() {
   createCanvas(640,480);
+  bellsound = loadSound('assets/bell.mp3');
   for (let i = 0; i < 8; i++) {
     grip[i].resize(grip[i].width/7,grip[i].height/7);
   }
   //generate grip positions
   //generate invisable grips for starting positions
   //type -1 is no link permissions, only starting positions
-  c=0;
-   griploc[c] = {
-     x:256,
-     y:247+1440,
-     type:-1
-   };
-   c++;
-   griploc[c] = {
-     x:306,
-     y:249+1440,
-     type:-1
-   };
-   c++;
-   griploc[c] = {
-     x:297,
-     y:454+1440,
-     type:-1
-   };
-   c++;
-   griploc[c] = {
-     x:266,
-     y:457+1440,
-     type:-1
-   };
-   c++;
   generateLevel(0);
-  griploc[c] = {
-     x:297,
-     y:10,
-     type:8
-   };
   //player setup
   for (let i = 0; i < 5; i++) {
     body[i].resize(body[i].width/1.5,body[i].height/1.5);
@@ -229,6 +204,7 @@ function draw(){
         }
       }
     }
+
     //move camera so player is in the center of the screen
     let delta = (transform[0].py-170)/-100;
     if(delta > 0){
@@ -243,10 +219,17 @@ function draw(){
       transform[0].px = a/c - transform[0].x;
       transform[0].py = b/c - transform[0].y - 10;
     }
+    //calculate the angle of the players body
+    getPlayerAngle();
     calculatePlayer();
     drawPlayer();
 
     //draw GUI elements
+    //ellipse(((mouseX+73600-76)%(536-76))+76,mouseY,10,10);
+    //stroke(0);
+    //line(76,0,76,height);
+    //line(536,0,536,height);
+    //print(mouseX);
     //progress bar
     if(dist(mouseX,mouseY, 27,25) < 18){
       tint(200);
@@ -292,6 +275,18 @@ function draw(){
         }
       }
     }
+}
+function getPlayerAngle(){
+    let _a = inbounds(0,0,0);
+    let _b = inbounds(1,0,0);
+    let _c = inbounds(2,0,0);
+    let _d = inbounds(3,0,0);
+    let _abx = (_a.x + _b.x)/2;
+    let _cdx = (_c.x + _d.x)/2;
+    let _aby = (_a.y + _b.y)/2;
+    let _cdy = (_c.y + _d.y)/2;
+  //distance from target point to shoulder is greater than x
+  if(dist(_abx,_aby,_cdx,_cdy) > 30) transform[0].angle = Math.atan2(_aby-_cdy, _abx-_cdx) + PI/2;
 }
 function calculatePlayer(){
   //calculate left arm position
@@ -363,7 +358,8 @@ function grab(limb,posx,posy){
     let lx = transform[0].x+transform[0].px+cos(transform[0].angle-2.28)*37;//start of limb
     let ly = transform[0].y+transform[0].py+sin(transform[0].angle-2.28)*37;
     let L = dist(lx,ly,posx,posy);
-    let angle = 0;
+    let angle = transform[1].angle;
+    if(L > 6){
     if(posx-lx<0){
       angle = Math.atan((posy-ly)/(posx-lx))-PI/2;
     }
@@ -385,12 +381,14 @@ function grab(limb,posx,posy){
       transform[1].angle = angle;
       transform[2].angle = angle;
     }
+    }
   }
   if(limb == 1){
     let lx = transform[0].x+transform[0].px+cos(transform[0].angle-PI/4)*37;//start of limb
     let ly = transform[0].y+transform[0].py+sin(transform[0].angle-PI/4)*37;
     let L = dist(lx,ly,posx,posy);
-    let angle = 0;
+    let angle = transform[3].angle;
+    if(L > 6){
     if(posx-lx<0){
       angle = Math.atan((posy-ly)/(posx-lx))-PI/2;
     }
@@ -412,12 +410,14 @@ function grab(limb,posx,posy){
       transform[3].angle = angle;
       transform[4].angle = angle;
     }
+    }
   }
   if(limb == 2){
     let lx = transform[0].x+transform[0].px+cos(transform[0].angle+1.1)*37;//start of limb
     let ly = transform[0].y+transform[0].py+sin(transform[0].angle+1.1)*37;
     let L = dist(lx,ly,posx,posy);
-    let angle = 0;
+    let angle = transform[7].angle;
+    if(L > 6){
     if(posx-lx<0){
       angle = Math.atan((posy-ly)/(posx-lx))-PI/2;
     }
@@ -439,12 +439,14 @@ function grab(limb,posx,posy){
       transform[7].angle = angle;
       transform[8].angle = angle;
     }
+    }
   }
   if(limb == 3){
     let lx = transform[0].x+transform[0].px+cos(transform[0].angle-4.3)*37;//start of limb
     let ly = transform[0].y+transform[0].py+sin(transform[0].angle-4.3)*37;
     let L = dist(lx,ly,posx,posy);
-    let angle = 0;
+    let angle = transform[5].angle;
+    if(L > 6){
     if(posx-lx<0){
       angle = Math.atan((posy-ly)/(posx-lx))-PI/2;
     }
@@ -461,23 +463,18 @@ function grab(limb,posx,posy){
       else{
         transform[5].angle = angle+limit;
         transform[6].angle = angle-limit;
-      }
+        }
     }else{
       transform[5].angle = angle;
       transform[6].angle = angle;
     }
   }
+  }
 }
 function mousePressed() {
   onclick();
 }
-function touchStarted(){
-  onclick();
-}
 function mouseReleased(){
-  onrelease();
-}
-function touchEnded(){
   onrelease();
 }
 function mouseOver(x,y,r){
@@ -545,10 +542,10 @@ function drawProgressBar(x,y,w,h,pg){
   stroke(0);
   strokeWeight(2);
   fill(255);
-  rect(x,y,w,h);
+  rect(x,y,w,h,5,5,5,5);
   fill(0,255,0);
   noStroke();
-  rect(x+1,y+1,(w-2)*pg,h-2);
+  rect(x+1,y+1,(w-2)*pg,h-2,5,5,5,5);
 }
 function restartButHarder(){
 y = 0;
@@ -579,7 +576,6 @@ skiprock = false;//making the limb skip the grip so it takes 2 clicks to grab
    };
    c++;
 
-   //generate level
   generateLevel(lvl);
 
   griploc[c] = {
@@ -686,60 +682,56 @@ skiprock = false;//making the limb skip the grip so it takes 2 clicks to grab
   transform[0].px = 250;
   calculatePlayer();
 }
-function generateLevel(lvl){
-  //the bountries for grips are between
-  //75 and 1843 for the y
-  //76 and 524 for x
-  //basic beginner level
-  if(lvl == 0){
-    for(let y = 1; y < 25; y++){
-      for(let x = 0; x < 4; x++){
-
-        griploc[c] = {
-          x:x*120+120 + 0,
-          y:y*(1920/25) + 0,
-          type:Math.floor(Math.random()*7)
-        };
-
-        c++;
-      }
-    }
-  }
-  else if(lvl > 0){
-    //something intelegent
-  }
-}
 function onclick(){
   if(gameState == "ingame"){
     //check for reset button
     if(dist(mouseX,mouseY, 27,25) < 18){
       restartButHarder();
     }
+    let lx = 0;
+    let ly = 0;
+    let order = [[0,1,2,3],[1,0,3,2]];
+    for(let e = 0; e < 4; e++){
+    switch(order[ind%2][e]){
+      case 0:
+      lx = transform[1].x+transform[1].px+cos(transform[1].angle-PI/2)*37+cos(transform[2].angle-PI/2)*37;
+      ly = transform[1].y+transform[1].py+sin(transform[1].angle-PI/2)*37+sin(transform[2].angle-PI/2)*37;
+      if(mouseOver(lx,ly,20) && allNotAnchord()){
+        anchor[0].type = 1;
+        ind++;
+        skiprock = true;
+      }
+      break;
+      case 1:
+      lx = transform[3].x+transform[3].px+cos(transform[3].angle-PI/2)*37+cos(transform[4].angle-PI/2)*37;
+      ly = transform[3].y+transform[3].py+sin(transform[3].angle-PI/2)*37+sin(transform[4].angle-PI/2)*37;
+      if(mouseOver(lx,ly,20) && allNotAnchord()){
+        anchor[1].type = 1;
+        ind++;
+        skiprock = true;
+      }
+      break;
+      case 2:
+      lx = transform[5].x+transform[5].px+cos(transform[5].angle-PI/2)*37+cos(transform[6].angle-PI/2)*37;
+      ly = transform[5].y+transform[5].py+sin(transform[5].angle-PI/2)*37+sin(transform[6].angle-PI/2)*37;
+      if(mouseOver(lx,ly,20) && allNotAnchord()){
+        anchor[3].type = 1;
+        ind++;
+        skiprock = true;
+      }
+      break;
+      case 3:
+      lx = transform[7].x+transform[7].px+cos(transform[7].angle-PI/2)*37+cos(transform[8].angle-PI/2)*37;
+      ly = transform[7].y+transform[7].py+sin(transform[7].angle-PI/2)*37+sin(transform[8].angle-PI/2)*37;
+      if(mouseOver(lx,ly,20) && allNotAnchord()){
+        anchor[2].type = 1;
+        ind++;
+        skiprock = true;
+      }
+      break;
+    }
+  }
 
-    let lx = transform[1].x+transform[1].px+cos(transform[1].angle-PI/2)*37+cos(transform[2].angle-PI/2)*37;
-    let ly = transform[1].y+transform[1].py+sin(transform[1].angle-PI/2)*37+sin(transform[2].angle-PI/2)*37;
-    if(mouseOver(lx,ly,20) && allNotAnchord()){
-      anchor[0].type = 1;
-      skiprock = true;
-    }
-    lx = transform[3].x+transform[3].px+cos(transform[3].angle-PI/2)*37+cos(transform[4].angle-PI/2)*37;
-    ly = transform[3].y+transform[3].py+sin(transform[3].angle-PI/2)*37+sin(transform[4].angle-PI/2)*37;
-    if(mouseOver(lx,ly,20) && allNotAnchord()){
-      anchor[1].type = 1;
-      skiprock = true;
-    }
-    lx = transform[5].x+transform[5].px+cos(transform[5].angle-PI/2)*37+cos(transform[6].angle-PI/2)*37;
-    ly = transform[5].y+transform[5].py+sin(transform[5].angle-PI/2)*37+sin(transform[6].angle-PI/2)*37;
-    if(mouseOver(lx,ly,20) && allNotAnchord()){
-      anchor[3].type = 1;
-      skiprock = true;
-    }
-    lx = transform[7].x+transform[7].px+cos(transform[7].angle-PI/2)*37+cos(transform[8].angle-PI/2)*37;
-    ly = transform[7].y+transform[7].py+sin(transform[7].angle-PI/2)*37+sin(transform[8].angle-PI/2)*37;
-    if(mouseOver(lx,ly,20) && allNotAnchord()){
-      anchor[2].type = 1;
-      skiprock = true;
-    }
     if(!skiprock){
       for(let i = 0; i < griploc.length; i++){
         let yeet = y-1440+griploc[i].y;
@@ -750,6 +742,7 @@ function onclick(){
               //is it the bell?
               gameState = 'nextlevel';
               stateTimer = 0;
+              bellsound.play();
             }
             else{//its just a regular grip
               anchor[boi].type = 2;
@@ -785,4 +778,70 @@ function onrelease(){
       ins.show = false;
     }
   }
+}
+function generateLevel(lvl){
+  //experiment .length = 0
+  griploc.length = 0;
+  c=0;
+   griploc[c] = {
+     x:256,
+     y:247+1440,
+     type:-1
+   };
+   c++;
+   griploc[c] = {
+     x:306,
+     y:249+1440,
+     type:-1
+   };
+   c++;
+   griploc[c] = {
+     x:297,
+     y:454+1440,
+     type:-1
+   };
+   c++;
+   griploc[c] = {
+     x:266,
+     y:457+1440,
+     type:-1
+   };
+   c++;
+
+  noiseSeed(random(0,100));
+  //the bountries for grips are between
+  //75 and 1843 for the y
+  //76 and 536 for x
+  let n = 0;
+  let r = {ee:50,n:0.35,z:0.12};
+  if(lvl < 5){
+    r = [{ee:20,n:2,z:0},{ee:35,n:1.5,z:0.03},{ee:38,n:1,z:0.06},{ee:42,n:0.7,z:0.08},{ee:46,n:0.4,z:0.1}][lvl];
+  }
+  for(let y = 1; y < 25; y++){
+    n = noise(y/r.n)*200;
+    for(let x = 0; x < 4; x++){
+      let a = random(-r.ee,r.ee);
+      let b = random(-r.ee,r.ee);
+      let _b = y*(1920/25)+b;
+      let _a = x*120+120+a+n;
+      if(random() > r.z){
+        addGrip(_a,_b);
+      }
+    }
+  }
+  //put bell on
+  griploc[c] = {
+     x:297,
+     y:10,
+     type:8
+   };
+}
+function addGrip(aa,bb){
+  //((mouseX+73600-76)%(536-76))+76
+  griploc[c] = {
+    x:((aa+73600-76)%(536-76))+76,//keep within the walls
+    y:constrain(bb,0,1840),
+    type:Math.floor(Math.random()*7)
+  };
+  c++;
 }
