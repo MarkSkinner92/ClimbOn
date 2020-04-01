@@ -1,19 +1,29 @@
 //gui
 let instruct, welcome, play, reset;
+let water = {};
 let ind = 0;
 let nextlevel, hm, msg;
 let ins = {show:true,fy:-96,ty:-4,cy:-96};//true y, false y, current y
-let gameState = 'start';//start, ingame, nextlevel
+let gameState = 'start';//start, ingame, nextlevel, store
 let stateTimer = 0;
-let bellsound;
+let bellsound, coinsound, bkmusic;
+let rain = [];
 //grips and background
 let backimg;
 let c = 0;
 let grip=[];
+let coinimg;
 let griploc=[];
 let y = 0;
+let bubbles=[];
+let popsound;
+//grip offsets
+let gpf = [];
 //person
+let people = [];
+let purch = [];
 let body=[];
+let skin = 0;
 let canrotatebody = true;
 let tintplr = false;
 let bro=[0,1,2,1,2,3,4,3,4];
@@ -22,8 +32,14 @@ let anchor=[];
 let skiprock = false;//making the limb skip the grip so it takes 2 clicks to grab
 //levelvars
 let lvl = 1;
+let coincount = 0;
+let drowntimer = 0;
+//store
+let storebk, store_bm, store_m,shop, storelocked, storebuy;
 function preload() {
+  bkmusic = loadSound('assets/background.wav');
   backimg = loadImage('assets/background.png');
+  water.img = loadImage('assets/water.png');
   reset = loadImage('assets/reset.png');
   play = loadImage('assets/play.png');
   welcome = loadImage('assets/welcome.png');
@@ -31,29 +47,65 @@ function preload() {
   hm = loadImage('assets/hm.png');
   msg = loadImage('assets/msg0.png');
   instruct = loadImage('assets/instruct.png');
+  coinimg = loadImage('assets/coin.png');
   for (let i = 0; i < 8; i++) {
     grip[i] = loadImage('assets/g'+i+'.png');
   }
   grip[8] = loadImage('assets/bell0.png');//the final target (the bell)
-  //load person
+  for(let b = 0; b < 4; b++){
+    people[b]=[];
+    for (let i = 0; i < 5; i++) {
+      people[b][i] = loadImage('assets/body'+b+i+'.png');
+    }
+  }
   for (let i = 0; i < 5; i++) {
-    body[i] = loadImage('assets/body'+i+'.png');
+    body[i] = people[0][i];
   }
 }
 function setup() {
   createCanvas(640,480);
+  //resize stuff
+  bkmusic.play();
+  bkmusic.loop();
+  textAlign(RIGHT,CENTER);
+  textSize(20);
+  water.x = 0;
+  water.y = 0;
+  water.my = 0;
   bellsound = loadSound('assets/bell.mp3');
+  coinsound = loadSound('assets/coin.wav');
+  popsound = loadSound('assets/pop.wav');
+  storebk = loadImage('assets/store.png');
+  store_m = loadImage('assets/store_mask.png');
+  storelocked = loadImage('assets/store_mask2.png');
+  storebuy = loadImage('assets/store_mask3.png');
+  store_bm = loadImage('assets/store_buttonmask.png');
+  shop = loadImage('assets/shop.png');
   for (let i = 0; i < 8; i++) {
     grip[i].resize(grip[i].width/7,grip[i].height/7);
   }
-  //generate grip positions
-  //generate invisable grips for starting positions
-  //type -1 is no link permissions, only starting positions
+  coinimg.resize(coinimg.width/2.5,coinimg.height/2.5);
   generateLevel(0);
-  //player setup
-  for (let i = 0; i < 5; i++) {
-    body[i].resize(body[i].width/1.5,body[i].height/1.5);
+  for(let b = 0; b < 4; b++){
+    for (let i = 0; i < 5; i++) {
+      people[b][i].resize(people[b][i].width/1.5,people[b][i].height/1.5);
+    }
   }
+  //add rain
+  for(let i = 0; i < 400; i++){
+    rain[i] = {x:random(0,640),y:random(-20,480-20)};
+  }
+  for(let i = 0; i < 4; i++){
+    purch[i] = {};
+  }
+  purch[0].p = true;
+  purch[0].c = 0;
+  purch[1].p = false;
+  purch[1].c = 20;
+  purch[2].p = false;
+  purch[2].c = 40;
+  purch[3].p = false;
+  purch[3].c = 60;
   //x and y are the rotational offset to px py
   transform[0] = {//body
     x:29,
@@ -118,13 +170,42 @@ function setup() {
     py:200,
     angle:PI
   };
+  gpf[0] = {
+    x:11.5,
+    y:1.5
+  };
+  gpf[1] = {
+    x:5.5,
+    y:9.5
+  };
+  gpf[2] = {
+    x:7.5,
+    y:2.5
+  };
+  gpf[3] = {
+    x:4.5,
+    y:0.5
+  };
+  gpf[4] = {
+    x:7.5,
+    y:5.5
+  };
+  gpf[5] = {
+    x:5.5,
+    y:10.5
+  };
+  gpf[6] = {
+    x:3.5,
+    y:14.5
+  };
+  gpf[7] = {
+    x:6.5,
+    y:2.5
+  };
   //type
   //0: not anchord
   //1: anchord to mouse
   //2: anchord to rock
-
-  //indexes normaly 0-1-2-3
-  //9-10-14-13
   anchor[0]={
     x:0,
     y:0,
@@ -156,12 +237,18 @@ function setup() {
 function draw(){
   if(gameState == "ingame"){
     stateTimer++;
+    if(!ins.show) water.my-=0.14;
+    water.x = sin(stateTimer/100)*100-100;
+    water.y = y+water.my+480;
     image(backimg, 0, y-1440);
     for(let i = 0; i < griploc.length; i++){
       let yeet = y-1440+griploc[i].y;
       if(yeet > -60 && yeet < 480){
         if(griploc[i].type != -1){//if its not a starting position
           image(grip[griploc[i].type],griploc[i].x,y-1440+griploc[i].y);
+          if(griploc[i].worth && griploc[i].type < 8){
+            image(coinimg,griploc[i].x + gpf[griploc[i].type].x,y-1440+griploc[i].y + gpf[griploc[i].type].y);
+          }
         }
       }
     }
@@ -219,23 +306,62 @@ function draw(){
       transform[0].px = a/c - transform[0].x;
       transform[0].py = b/c - transform[0].y - 10;
     }
+    //draw bubbles
+    if(bubbles.length > 0 && bubbles[0].y < water.y+13){
+      bubbles.shift();
+      popsound.play();
+    }
+    fill(255);
+    noStroke();
+    for(let i = 0; i < bubbles.length; i++){
+      ellipse(bubbles[i].x,bubbles[i].y,10,10);
+      bubbles[i].y-=5;
+      bubbles[i].x += sin(bubbles[i].r)*5;
+      bubbles[i].r += 1.5;
+    }
     //calculate the angle of the players body
     getPlayerAngle();
     calculatePlayer();
     drawPlayer();
-
-    //draw GUI elements
-    //ellipse(((mouseX+73600-76)%(536-76))+76,mouseY,10,10);
-    //stroke(0);
-    //line(76,0,76,height);
-    //line(536,0,536,height);
-    //print(mouseX);
+    //draw gui
+    //draw rain
+    strokeWeight(3);
+    stroke(143, 171, 255, 50);
+    for(let i = 0; i < rain.length; i++){
+      let x = rain[i].x;
+      let y = rain[i].y;
+      line(x,y,x,y+20);
+      rain[i].y += 10;
+      if(rain[i].y > 480) rain[i].y = -20;
+    }
+    noStroke();
+    let headpoint = transform[0].y+transform[0].py+sin(transform[0].angle-PI/2)*60-20;
+    let hpx = transform[0].x+transform[0].px+cos(transform[0].angle-PI/2)*60;
+    if(headpoint > water.y){
+      drowntimer++;
+      if(drowntimer > 20 && stateTimer%((floor((drowntimer-20)/25))+2) == 0) bubbles.push({x:hpx,y:headpoint+20,r:random(0,100)});
+      if(drowntimer > 350){
+        restartButHarder();
+      }
+    }else{
+      drowntimer = 0;
+    }
+    fill(0);
+    text("coins:"+coincount,500,18);
     //progress bar
-    if(dist(mouseX,mouseY, 27,25) < 18){
+    if(dist(mouseX,mouseY, 27,25) < 14){
       tint(200);
     }
     image(reset,13,11);
     noTint();
+    //shop
+    if(dist(mouseX,mouseY, 30,57) < 14){
+      tint(200);
+      text("opens the shop (and pauses game)",420,13);
+    }
+    image(shop,13,47);
+    noTint();
+
     drawProgressBar(540,7,91,18,y/1440);
     if(ins.show){
       ins.cy = Math.lerp(ins.cy,ins.ty,0.1);
@@ -243,7 +369,7 @@ function draw(){
       ins.cy = Math.lerp(ins.cy,ins.fy,0.1);
     }
     image(instruct,20,ins.cy);
-
+    image(water.img,water.x,water.y);
   }//end gameState == "ingame"
   //not in game
   else if(gameState == 'start'){
@@ -255,14 +381,14 @@ function draw(){
       image(play,384,232);
       noTint();
     }
-    else{//next level state = 'nextlevel'
+    else if(gameState == 'nextlevel'){//next level state = 'nextlevel'
       stateTimer++;
       background(0,0,0);
       if(stateTimer > 20){
         image(hm,226,74);
         if(stateTimer > 50){
           image(msg,107,200);
-          if(stateTimer > 80){
+          if(stateTimer > 80)
             if(mouseX > 182 && mouseX < 428 && mouseY > 338 && mouseY < 408){
               tint(170,170,170);
             }
@@ -274,7 +400,27 @@ function draw(){
           }
         }
       }
+    else if(gameState == 'store'){
+      image(storebk,0,0);
+      if(mouseX > 107 && mouseX < 164 && mouseY > 38 && mouseY < 69) image(store_bm,107,38);
+      drawSquare(7,189,0,true);
+      drawSquare(165,189,1,true);
+      drawSquare(324,189,2,true);
+      drawSquare(481,189,3,true);
+      fill(0);
+      text(coincount,517,53);
     }
+}
+function drawSquare(x,y,g,b){
+  if(mouseX > x && mouseX < x+150 && mouseY > y && mouseY < y+161){
+    if(b){
+      if(purch[g].p)image(store_m,x,y);
+      else if(purch[g].c > coincount) image(storelocked,x,y);
+      else image(storebuy,x,y);
+    }
+    return true;
+  }
+  return false;
 }
 function getPlayerAngle(){
     let _a = inbounds(0,0,0);
@@ -548,6 +694,9 @@ function drawProgressBar(x,y,w,h,pg){
   rect(x+1,y+1,(w-2)*pg,h-2,5,5,5,5);
 }
 function restartButHarder(){
+  bubbles = [];
+  water.x = 0;
+  water.my = 0;
 y = 0;
 skiprock = false;//making the limb skip the grip so it takes 2 clicks to grab
   c=0;
@@ -685,8 +834,11 @@ skiprock = false;//making the limb skip the grip so it takes 2 clicks to grab
 function onclick(){
   if(gameState == "ingame"){
     //check for reset button
-    if(dist(mouseX,mouseY, 27,25) < 18){
+    if(dist(mouseX,mouseY, 27,25) < 14){
       restartButHarder();
+    }
+    if(dist(mouseX,mouseY, 30,57) < 14){
+      gameState = 'store';
     }
     let lx = 0;
     let ly = 0;
@@ -747,6 +899,11 @@ function onclick(){
             else{//its just a regular grip
               anchor[boi].type = 2;
               anchor[boi].index = i;
+              if(griploc[i].worth){
+                griploc[i].worth = false;
+                coinsound.play();
+                coincount+=5;
+              }
             }
           }
         }
@@ -754,7 +911,6 @@ function onclick(){
     }
   }//end gamestate = ingame
   else if(gameState == 'start'){
-    //518 351 r100
     if(dist(mouseX,mouseY,518,351) < 100){
       ins.show = true;//show the instructions
       gameState = 'ingame';
@@ -769,6 +925,39 @@ function onclick(){
       //harder becuase the levels about to increase :)
       lvl++;
     }
+  }
+  else if(gameState == 'store'){
+    if(mouseX > 107 && mouseX < 164 && mouseY > 38 && mouseY < 69){
+      gameState = 'ingame';
+    }
+
+    if(drawSquare(7,189,0,false)){
+      switchtop(0);
+    }
+    if(drawSquare(165,189,1,false)){
+      switchtop(1);
+    }
+    if(drawSquare(324,189,2,false)){
+      switchtop(2);
+    }
+    if(drawSquare(481,189,3,false)){
+      switchtop(3);
+    }
+  }
+}
+function switchtop(r){
+  if(purch[r].p){
+    for (let i = 0; i < 5; i++) {
+      body[i] = people[r][i];
+    }
+    gameState = 'ingame';
+  }else if(purch[r].c <= coincount){
+    purch[r].p = true;
+    coincount = coincount - purch[r].c;
+    for (let i = 0; i < 5; i++) {
+      body[i] = people[r][i];
+    }
+    gameState = 'ingame';
   }
 }
 function onrelease(){
@@ -786,25 +975,29 @@ function generateLevel(lvl){
    griploc[c] = {
      x:256,
      y:247+1440,
-     type:-1
+     type:-1,
+     worth:false
    };
    c++;
    griploc[c] = {
      x:306,
      y:249+1440,
-     type:-1
+     type:-1,
+     worth:false
    };
    c++;
    griploc[c] = {
      x:297,
      y:454+1440,
-     type:-1
+     type:-1,
+     worth:false
    };
    c++;
    griploc[c] = {
      x:266,
      y:457+1440,
-     type:-1
+     type:-1,
+     worth:false
    };
    c++;
 
@@ -841,7 +1034,8 @@ function addGrip(aa,bb){
   griploc[c] = {
     x:((aa+73600-76)%(536-76))+76,//keep within the walls
     y:constrain(bb,0,1840),
-    type:Math.floor(Math.random()*7)
+    type:Math.floor(Math.random()*8),
+    worth:random()>0.85?true:false
   };
   c++;
 }
