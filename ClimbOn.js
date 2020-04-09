@@ -6,7 +6,7 @@ let nextlevel, hm, msg;
 let ins = {show:true,fy:-96,ty:-4,cy:-96};//true y, false y, current y
 let gameState = 'start';//start, ingame, nextlevel, store
 let stateTimer = 0;
-let bellsound, coinsound, bkmusic;
+let bellsound, coinsound;
 let rain = [];
 //grips and background
 let backimg;
@@ -37,7 +37,6 @@ let drowntimer = 0;
 //store
 let storebk, store_bm, store_m,shop, storelocked, storebuy;
 function preload() {
-  bkmusic = loadSound('assets/background.wav');
   backimg = loadImage('assets/background.png');
   water.img = loadImage('assets/water.png');
   reset = loadImage('assets/reset.png');
@@ -65,8 +64,6 @@ function preload() {
 function setup() {
   createCanvas(640,480);
   //resize stuff
-  bkmusic.play();
-  bkmusic.loop();
   textAlign(RIGHT,CENTER);
   textSize(20);
   water.x = 0;
